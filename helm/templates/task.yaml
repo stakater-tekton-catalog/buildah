@@ -140,7 +140,7 @@ spec:
             --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
             docker://$(params.IMAGE)
         else
-          if [ "$override" = true ]; then
+          if [ "$OVERRIDE" = true ]; then
             buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG)
             buildah tag $(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) $(params.IMAGE)
             buildah --storage-driver=$(params.STORAGE_DRIVER) push \
