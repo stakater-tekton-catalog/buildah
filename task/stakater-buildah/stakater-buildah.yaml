@@ -5,7 +5,7 @@ kind: Task
 metadata:
   name: stakater-buildah
   labels:
-    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/version: "0.0.30"
 spec:
   description: >-
     Buildah task builds source into a container image and then pushes it to a
@@ -66,6 +66,10 @@ spec:
       description: Current version of the application/image in dev.
       name: CURRENT_GIT_TAG
       type: string
+    - description: Name of the repository
+      name: REPO_NAME
+      default: 'NA'
+      type: string
   results:
     - description: Digest of the image just built.
       name: IMAGE_DIGEST
@@ -74,6 +78,12 @@ spec:
       name: build
       resources: {}
       env:
+        - name: IMAGE_REGISTRY
+          valueFrom:
+            secretKeyRef:
+              name: docker-reg-creds
+              key: url
+              optional: true
         - name: WORKSPACE_BUILDAH_GIT_DEPENDENCY_TOKEN_BOUND
           value: $(workspaces.buildah-git-dependency-token.bound)
       script: >
@@ -87,8 +97,11 @@ spec:
           echo "$FILE does not exist."
           GIT_DEPENDENCY_TOKEN=''
         fi
-        
-        buildah pull docker://$(params.IMAGE_REGISTRY):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
+        if [ $(params.IMAGE_REGISTRY) != "NA" ]; then
+          buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
+        else
+          buildah pull docker://${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
+        fi        
 
         if [[ $(params.BUILD_IMAGE) == true ||  $Image_unavailable != ''
         ]]; then
@@ -107,10 +120,20 @@ spec:
     - image: $(params.BUILDER_IMAGE)
       name: push
       resources: {}
+      env:
+        - name: IMAGE_REGISTRY
+          valueFrom:
+            secretKeyRef:
+              name: docker-reg-creds
+              key: url
+              optional: true
       script: >
-        buildah pull
-        docker://$(params.IMAGE_REGISTRY):$(params.CURRENT_GIT_TAG)||
-        Image_unavailable=$?
+        if [ $(params.IMAGE_REGISTRY) != "NA" ]; then
+          OVERRIDE=true
+          buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
+        else
+          buildah pull docker://${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
+        fi  
 
         if [[ $(params.BUILD_IMAGE) == true || $Image_unavailable != ''
         ]]; then
@@ -119,11 +142,19 @@ spec:
             --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
             docker://$(params.IMAGE)
         else
-          buildah pull docker://$(params.IMAGE_REGISTRY):$(params.CURRENT_GIT_TAG)
-          buildah tag $(params.IMAGE_REGISTRY):$(params.CURRENT_GIT_TAG) $(params.IMAGE)
-          buildah --storage-driver=$(params.STORAGE_DRIVER) push \
-            $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-            $(params.IMAGE) docker://$(params.IMAGE)
+          if [ "$OVERRIDE" = true ]; then
+            buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG)
+            buildah tag $(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) $(params.IMAGE)
+            buildah --storage-driver=$(params.STORAGE_DRIVER) push \
+              $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+              $(params.IMAGE) docker://$(params.IMAGE)
+          else
+            buildah pull docker://${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG)
+            buildah tag ${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) $(params.IMAGE)
+            buildah --storage-driver=$(params.STORAGE_DRIVER) push \
+              $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+              $(params.IMAGE) docker://$(params.IMAGE)
+          fi
         fi
       securityContext:
         privileged: true
