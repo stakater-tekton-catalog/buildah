@@ -14,60 +14,60 @@ spec:
     Dockerfile to assemble a container image, then pushes that image to a
     container registry.
   params:
-    - description: Reference of the image buildah will produce.
-      name: IMAGE
+    - name: IMAGE_NAME
       type: string
-    - default: >-
-        registry.redhat.io/rhel8/buildah@sha256:180c4d9849b6ab0e5465d30d4f3a77765cf0d852ca1cb1efb59d6e8c9f90d467
+      description: Reference of the image buildah will produce. Consists of application name proceeded by tag.
+    - name: BUILDER_IMAGE
+      type: string
       description: The location of the buildah builder image.
-      name: BUILDER_IMAGE
+      default: >-
+        registry.redhat.io/rhel8/buildah@sha256:180c4d9849b6ab0e5465d30d4f3a77765cf0d852ca1cb1efb59d6e8c9f90d467
+    - name: STORAGE_DRIVER
       type: string
-    - default: overlay
       description: Set buildah storage driver
-      name: STORAGE_DRIVER
+      default: overlay
+    - name: DOCKERFILE
       type: string
-    - default: ./Dockerfile
       description: Path to the Dockerfile to build.
-      name: DOCKERFILE
+      default: ./Dockerfile
+    - name: CONTEXT
       type: string
-    - default: .
       description: Path to the directory to use as context.
-      name: CONTEXT
+      default: .
+    - name: TLSVERIFY
       type: string
-    - default: 'true'
       description: >-
         Verify the TLS on the registry endpoint (for push/pull to a non-TLS
         registry)
-      name: TLSVERIFY
+      default: 'true'
+    - name: FORMAT
       type: string
-    - default: oci
       description: 'The format of the built container, oci or docker'
-      name: FORMAT
+      default: oci
+    - name: BUILD_EXTRA_ARGS
       type: string
-    - default: ''
       description: Extra parameters passed for the build command when building images.
-      name: BUILD_EXTRA_ARGS
+      default: ''
+    - name: PUSH_EXTRA_ARGS
       type: string
-    - default: ''
+      default: ''
       description: Extra parameters passed for the push command when pushing images.
-      name: PUSH_EXTRA_ARGS
+    - name: BUILD_IMAGE
       type: string
-    - default: 'true'
+      default: 'true'
       description: Flag specifying whether image should be built again.
-      name: BUILD_IMAGE
+    - name: IMAGE_REGISTRY
       type: string
-    - default: ''
+      default: ''
       description: Image registry url.
-      name: IMAGE_REGISTRY
+    - name: CURRENT_GIT_TAG
       type: string
-    - default: ''
+      default: ''
       description: Current version of the application/image in dev.
-      name: CURRENT_GIT_TAG
+    - name: REPO_NAME
       type: string
-    - description: Name of the repository
-      name: REPO_NAME
+      description: Name of the repository
       default: 'NA'
-      type: string
   results:
     - description: Digest of the image just built.
       name: IMAGE_DIGEST
@@ -86,6 +86,7 @@ spec:
           value: $(workspaces.buildah-git-dependency-token.bound)
       script: >
         
+        # Required when image has dependencies in a private image registry. You will need to provide BUILD_EXTRA_ARGS to create the correct format.
         if [ "${WORKSPACE_BUILDAH_GIT_DEPENDENCY_TOKEN_BOUND}" = "true"  ]; then
           token=$(ls ../buildah-git-dependency-token/)
           FILE=../buildah-git-dependency-token/$token 
@@ -96,6 +97,7 @@ spec:
           GIT_DEPENDENCY_TOKEN=''
         fi
         if [ $(params.IMAGE_REGISTRY) != "NA" ]; then
+          OVERRIDE=true
           buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
         else
           buildah pull docker://${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
@@ -103,10 +105,17 @@ spec:
 
         if [[ $(params.BUILD_IMAGE) == true ||  $Image_unavailable != ''
         ]]; then
-          buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
+          if [ "$OVERRIDE" = true ]; then
+            buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
             $(params.BUILD_EXTRA_ARGS)$GIT_DEPENDENCY_TOKEN --format=$(params.FORMAT) \
             --tls-verify=$(params.TLSVERIFY) --no-cache \
-            -f $(params.DOCKERFILE) -t $(params.IMAGE) $(params.CONTEXT)
+            -f $(params.DOCKERFILE) -t $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME) $(params.CONTEXT)
+          else
+          buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
+          $(params.BUILD_EXTRA_ARGS)$GIT_DEPENDENCY_TOKEN --format=$(params.FORMAT) \
+          --tls-verify=$(params.TLSVERIFY) --no-cache \
+          -f $(params.DOCKERFILE) -t ${IMAGE_REGISTRY}/$(params.IMAGE_NAME) $(params.CONTEXT)
+          fi
         fi
 
       securityContext:
@@ -132,26 +141,26 @@ spec:
         else
           buildah pull docker://${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) || Image_unavailable=$?
         fi  
-
+  
         if [[ $(params.BUILD_IMAGE) == true || $Image_unavailable != ''
         ]]; then
           buildah --storage-driver=$(params.STORAGE_DRIVER) push \
             $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-            --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE) \
-            docker://$(params.IMAGE)
+            --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME) \
+            docker://$(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME)
         else
           if [ "$OVERRIDE" = true ]; then
             buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG)
-            buildah tag $(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) $(params.IMAGE)
+            buildah tag $(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME)
             buildah --storage-driver=$(params.STORAGE_DRIVER) push \
               $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-              $(params.IMAGE) docker://$(params.IMAGE)
+              $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME) docker://$(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME)
           else
             buildah pull docker://${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG)
-            buildah tag ${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) $(params.IMAGE)
+            buildah tag ${IMAGE_REGISTRY}/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG) ${IMAGE_REGISTRY}/$(params.IMAGE_NAME)
             buildah --storage-driver=$(params.STORAGE_DRIVER) push \
               $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-              $(params.IMAGE) docker://$(params.IMAGE)
+              ${IMAGE_REGISTRY}/$(params.IMAGE_NAME) docker://${IMAGE_REGISTRY}/$(params.IMAGE_NAME)
           fi
         fi
       securityContext:
