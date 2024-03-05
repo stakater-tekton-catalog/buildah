@@ -5,7 +5,7 @@ kind: Task
 metadata:
   name: stakater-buildah
   labels:
-    app.kubernetes.io/version: "0.0.35"
+    app.kubernetes.io/version: "0.0.36"
 spec:
   description: >-
     Buildah task builds source into a container image and then pushes it to a
@@ -149,10 +149,17 @@ spec:
   
         if [[ $(params.BUILD_IMAGE) == true || $Image_unavailable != ''
         ]]; then
+          if [ "$OVERRIDE" = true ]; then
           buildah --storage-driver=$(params.STORAGE_DRIVER) push \
             $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
             --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME) \
             docker://$(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME)
+          else
+          buildah --storage-driver=$(params.STORAGE_DRIVER) push \
+            $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
+            --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME) \
+            docker://${IMAGE_REGISTRY}/$(params.IMAGE_NAME)
+          fi
         else
           if [ "$OVERRIDE" = true ]; then
             buildah pull docker://$(params.IMAGE_REGISTRY)/$(params.REPO_NAME):$(params.CURRENT_GIT_TAG)
