@@ -5,7 +5,7 @@ kind: Task
 metadata:
   name: stakater-buildah
   labels:
-    app.kubernetes.io/version: "0.0.34"
+    app.kubernetes.io/version: "0.0.35"
 spec:
   description: >-
     Buildah task builds source into a container image and then pushes it to a
@@ -60,7 +60,8 @@ spec:
       description: Flag specifying whether image should be built again.
     - name: IMAGE_REGISTRY
       type: string
-      default: ''
+      default: 'NA'
+      optional: true
       description: Image registry url.
     - name: CURRENT_GIT_TAG
       type: string
