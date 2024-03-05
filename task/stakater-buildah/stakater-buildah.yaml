@@ -5,7 +5,7 @@ kind: Task
 metadata:
   name: stakater-buildah
   labels:
-    app.kubernetes.io/version: "0.0.33"
+    app.kubernetes.io/version: "0.0.34"
 spec:
   description: >-
     Buildah task builds source into a container image and then pushes it to a
@@ -86,7 +86,7 @@ spec:
               optional: true
         - name: WORKSPACE_BUILDAH_GIT_DEPENDENCY_TOKEN_BOUND
           value: $(workspaces.buildah-git-dependency-token.bound)
-      script: >
+      script: |
         
         # Required when image has dependencies in a private image registry.
         # You will need to provide BUILD_EXTRA_ARGS to create the correct format.
