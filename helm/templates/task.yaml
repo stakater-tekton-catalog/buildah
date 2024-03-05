@@ -84,7 +84,7 @@ spec:
               optional: true
         - name: WORKSPACE_BUILDAH_GIT_DEPENDENCY_TOKEN_BOUND
           value: $(workspaces.buildah-git-dependency-token.bound)
-      script: >
+      script: |
         
         # Required when image has dependencies in a private image registry.
         # You will need to provide BUILD_EXTRA_ARGS to create the correct format.
