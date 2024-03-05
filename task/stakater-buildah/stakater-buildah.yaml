@@ -5,7 +5,7 @@ kind: Task
 metadata:
   name: stakater-buildah
   labels:
-    app.kubernetes.io/version: "0.0.36"
+    app.kubernetes.io/version: "0.0.37"
 spec:
   description: >-
     Buildah task builds source into a container image and then pushes it to a
@@ -157,7 +157,7 @@ spec:
           else
           buildah --storage-driver=$(params.STORAGE_DRIVER) push \
             $(params.PUSH_EXTRA_ARGS) --tls-verify=$(params.TLSVERIFY) \
-            --digestfile $(workspaces.source.path)/image-digest $(params.IMAGE_REGISTRY)/$(params.IMAGE_NAME) \
+            --digestfile $(workspaces.source.path)/image-digest ${IMAGE_REGISTRY}/$(params.IMAGE_NAME) \
             docker://${IMAGE_REGISTRY}/$(params.IMAGE_NAME)
           fi
         else
