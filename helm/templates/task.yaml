@@ -58,7 +58,8 @@ spec:
       description: Flag specifying whether image should be built again.
     - name: IMAGE_REGISTRY
       type: string
-      default: ''
+      default: 'NA'
+      optional: true
       description: Image registry url.
     - name: CURRENT_GIT_TAG
       type: string
